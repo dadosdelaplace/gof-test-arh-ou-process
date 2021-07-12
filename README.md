@@ -508,8 +508,330 @@ ARH_pred_OU <- function(OU, thre_p = 0.95, fpc = TRUE,
 
 
 
-Main functions
+Main functions: two-stages specification test
 ------------
+ 
+
+##### `ARHz_test()` (stage 1: GoF test for ARH(z) processes)
+  
+
+* Description: function for testing if a stochastic process is an ARH(z) process or not
+  * H0: ARH(z) process
+  * H1: unspecified alternative
+* Main inputs:
+  * `X`: stochastic process as the list provided by `r_stoch_proc()`.
+  * `z`: order of the ARH process (ARH(z) process).
+  * `B`: bootstrap replicates.
+  * `hyp_simp`/ `hyp_comp`: flags to indicate if simple and/or composite hypothesis are tested.
+  * `est_method`: FLMFR estimation method.
+  * `thre_p`, `thre_q`: amount of variance to be captured by the initial FPC selection.
+* Output: a list with the following elements
+  * `X`: input stochastic process.
+  * `X_flmfr`: X splitted and characterized as FLMFR
+  * `testing_simple`/ `testing_comp`: test outputs for simple and/or composite hypothesis test.
+ 
+  
+```r
+# Example
+OU <- r_stoch_proc(300, seq(0, 1, l = 81), par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.1),
+      warm_up = -1, model = "OU")
+testing_ARHz <- ARHz_test(OU, z = 1, B = 1000, hyp_simp = FALSE, hyp_comp = TRUE, est_method = "fpcr_l1s",
+                          thre_p = 0.995, thre_q = 0.995)
+```
+  
+<details><summary>Code</summary>
+
+```r
+ARHz_test <- function(X, z = 1, B = 1000, hyp_simp = FALSE, hyp_comp = TRUE,
+                      est_method = "fpcr", thre_p = 0.995, thre_q = 0.995,
+                      lambda = NULL, boot_scores = TRUE, plot_dens = FALSE,
+                      plot_proc = FALSE, save_fit_flm = TRUE,
+                      save_boot_stats = TRUE, cv_1se = TRUE) {
+  
+  # If hyp_comp = hyp_simp = 0 ==> hyp_comp = 1
+  hyp_comp <- ifelse(hyp_comp + hyp_simp == 0, 1, hyp_comp)
+  
+  # Convert X into an ARH(p)  process
+  cat("\nConverting X into an ARH(z) process...\n")
+  X_flmfr <- ARH_to_FLMFR(X[["fstoch_proc"]], z)
+  
+  testing_simple <- testing_comp <- NULL
+  if (hyp_simp) {
+    
+    cat("Testing if X is an ARH(0) (rho = null operator)...\n")
+    # Testing if X is an ARH(0); that is, rho = null operator (beta0 = 0)
+    testing_simple <- flm_test(X_flmfr$X_fdata, X_flmfr$Y_fdata, beta0 = 0,
+                               B = B, est_method = est_method,
+                               thre_p = thre_p,
+                               thre_q = thre_q, lambda = lambda,
+                               boot_scores = boot_scores,
+                               plot_dens = plot_dens, plot_proc = plot_proc,
+                               save_fit_flm = save_fit_flm,
+                               save_boot_stats = save_boot_stats,
+                               cv_1se = cv_1se, verbose = FALSE)
+    
+  }
+  
+  if (hyp_comp) {
+    
+    cat("Testing if X is an ARH(z) process\n")
+    # Testing if X is an ARH(z)
+    testing_comp <- flm_test(X_flmfr$X_fdata, X_flmfr$Y_fdata, B = B,
+                             est_method = est_method,
+                             thre_p = thre_p,
+                             thre_q = thre_q, lambda = lambda,
+                             boot_scores = boot_scores, plot_dens = plot_dens,
+                             plot_proc = plot_proc,
+                             save_fit_flm = save_fit_flm,
+                             save_boot_stats = save_boot_stats,
+                             cv_1se = cv_1se, verbose = FALSE)
+    
+  }
+  
+  # Output
+  return(list("X" = X, "X_flmfr" = X_flmfr, "testing_simple" = testing_simple,
+              "testing_comp" = testing_comp))
+}
+```
+</details>
+ 
+#### `F_stat_OU()` (stage 2: F-test for OU processes):
+ 
+* Description: given a stochastic process, this function, firstly, builds the functional model Y = rho(X), with Y = X_n and X = X_{n-1}, and secondly, computes the F-statistic between FLMFR (unrestricted) vs OU (that is, a particular ARH(1), with a specific operator rho, understood as a particular case of FLMFR).
+  * H0: OU process (as particular ARH(1) process)
+  * H1: any FLMFR different to H0
+* Main inputs:
+  * `X_flmfr`: stochastic process characterized as a FLMFR
+  * `X`: stochastic process as the list provided by `r_stoch_proc()`.
+  * `est_method`: FLMFR estimation method.
+  * `thre_p`, `thre_q`: amount of variance to be captured by the initial FPC selection.
+* Output: a list with the following elements
+  * `F_stat`: F-statistic of the test
+  * `RSS_FLMFR`: residual sum of squared norms under the unrestricted FLMFR hypothesis
+  * `RSS_OU`: residual sum of squared norms under the OU model
+  * `pred_OU`: prediction of the stochastic process as an OU process (via ARH(1) model)
+  * `FLMFR_est`: prediction of the stochastic process as a FLMFR process
+ 
+
+```r
+# Example
+OU <- r_stoch_proc(300, seq(0, 1, l = 81),
+                   par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.1),
+                   warm_up = -1, model = "OU")
+testing_ARHz <- ARHz_test(OU, z = 1, B = 1000, hyp_simp = FALSE,
+                          hyp_comp = TRUE, est_method = "fpcr_l1s",
+                          thre_p = 0.995, thre_q = 0.995)
+testing_F_OU <- F_stat_OU(testing_ARHz$X_flmfr, OU, est_method = "fpcr_l1s",
+                          thre_p = 0.995, thre_q = 0.995,
+                          cv_1se = FALSE)
+F_stat <- testing_F_OU$F_stat
+```
+ 
+ 
+ <details><summary>Code</summary>
+
+```r
+F_stat_OU <- function(X_flmfr, X, est_method = "fpcr_l1s", thre_p = 0.995,
+                      thre_q = 0.995, lambda = NULL, cv_1se = FALSE,
+                      tol = 1e-2, verbose = TRUE) {
+  
+  ## RESTRICTED OU MODEL: X as an ARH(1) (as a particular case of FLMFR)
+  ## between X_n vs X_{n-1}
+  
+  # Computing predictor as an OU process, decomposed into FPC
+  if (verbose) {
+    
+    cat("\nComputing predictor as an OU process...\n")
+    
+  }
+  pred_OU <- ARH_pred_OU(X, thre_p = thre_p, fpc = TRUE)
+  theta_est <- pred_OU[["theta_est"]]
+  
+  # Residual Sum of Squared L2-norms
+  RSS_OU <- mean(apply(pred_OU[["residuals"]][["data"]]^2, 1,
+                       FUN = "integral1D",
+                       pred_OU[["residuals"]][["argvals"]]))
+  
+  ## UNRESTRICTED MODEL: X as a FLMFR X_n vs X_{n-1}
+  if (verbose) {
+    
+    cat("Computing FLMFR estimator...\n")
+    
+  }
+  FLMFR_est <- flm_est(X = X_flmfr$X_fdata, Y = X_flmfr$Y_fdata,
+                       est_method = est_method, thre_p = thre_p,
+                       thre_q = thre_q, lambda = lambda,
+                       cv_1se = cv_1se)
+  
+  # Residual Sum of Squared L2-norms
+  RSS_FLMFR <- mean(apply(FLMFR_est[["residuals"]][["data"]]^2, 1,
+                          FUN = "integral1D",
+                          X_flmfr$Y_fdata[["argvals"]]))
+  
+  # Computing F-statistic
+  F_stat <- (RSS_OU - RSS_FLMFR) / RSS_FLMFR
+  
+  # Output
+  return(list("F_stat" = F_stat, "RSS_FLMFR" = RSS_FLMFR,
+              "RSS_OU" = RSS_OU, "pred_OU" = pred_OU,
+              "FLMFR_est" = FLMFR_est))
+}
+```
+</details>
+  
+  
+#### `test_gof_OU()`:
+  
+* Description: function for implementing a two-stages OU specification test
+  * STAGE 1:
+    * H0: X_n is an ARH(1) process (X_n vs X_{n-1} FLMFR)
+    * H1: X_n is not an ARH(1) process
+  * STAGE 2 (F-test): 
+    * H0: X_n = rho(X_{n-1}) from an OU process
+    * H1: X_n = rho(X_{n-1}) an alternative FLMFR model
+* Main inputs:
+  * `n`: sample size (numer of functional trajectories valued in `t`).
+  * `t`: grid points where functional trajectories are valued.
+  * `par.sde`: a list of parameters to introduce if the model is generated nested in the CKLS parametric family (`type = CKLS`). Otherwise, unevaluated expressions for drift (`drf`) and sigma (`sig`) functions can be also provided.
+  * `warm_up`: number of trajectories to be discarded.
+  * `model`: type of CKLS model to be simulated.
+  * `hyp_simp`/ `hyp_comp`: flags to indicate if simple and/or composite hypothesis are tested.
+  * `est_method`: FLMFR estimation method.
+  * `thre_p`, `thre_q`: amount of variance to be captured by the initial FPC selection.
+  * `z`: order to be test (ARH(z) model)
+* Outputs: an htest object with (among others elements)
+  * `statistics` (`ARH(0)-stat`, `ARH(1)-stat`, `F-stat OU`): statistics for the simple/composite hypothesis of the stage 1, and F-statistic of the stage 2.
+  * `p.value` (`GOF ARH(0)`, `GOF ARH(1)`, `F-test OU`): p-values of the corresponding tests
+  * `boot_statistics` (`GOF ARH(0)`, `GOF ARH(1)`, `F-test`): bootstrapped statistics.
+  class(result) <- "htest"
+
+
+```r
+# Example: testing Ait-Sahalia (AS) model:
+drf <- expression(0.00107/x - 0.0517 + 0.877*x - 4.604*x^2)  # SDE drift function
+sig <- expression(0.8 * x^1.5)                               # SDE diffusion function
+AS_test <- test_gof_OU(150, t = seq(0, 1, l = 101), warm_up = -1,  type = "other", z = 1, B = 50,
+                       X0 = 0.08, est_method = "fpcr_l1s", thre_p = 0.995, thre_q = 0.995,
+                       verbose = TRUE, drf = drf, sig = sig)
+AS_test$p.value  # p-values Stage 1 and 2
+
+# Example: testing OU model
+OU_test <- test_gof_OU(150, t = seq(0, 1, l = 101), warm_up = -1, par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.05),
+                       type = "CKLS", z = 1, B = 50, est_method = "fpcr_l1s",
+                       thre_p = 0.995, thre_q = 0.995, verbose = TRUE)
+OU_test$p.value  # p-values Stage 1 and 2
+```
+  
+<details><summary>Code</summary>
+
+```r
+test_gof_OU <- function(n, t = seq(0, 1, l = 71),
+                        par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 1),
+                        mu = par.sde[["alpha"]] / par.sde[["beta"]], X0 = mu,
+                        warm_up = 50, type = "CKLS", model = "OU", z = 1, B = 1000,
+                        hyp_simp = FALSE, hyp_comp = TRUE, est_method = "fpcr_l1s", 
+                        thre_p = 0.995, thre_q = 0.995, lambda = NULL, 
+                        boot_scores = TRUE, plot_dens = FALSE, plot_proc = FALSE, 
+                        save_fit_flm = TRUE, save_boot_stats = TRUE, cv_1se = TRUE, 
+                        verbose = FALSE, drf = NULL, sig = NULL) {
+  
+  # Generating sde as a functional stochastic process
+  X <- r_stoch_proc(n, t = t, par.sde = par.sde, mu = mu, X0 = X0,
+                    warm_up = warm_up, type = type, model = model,
+                    verbose = FALSE, plot = FALSE, drf = drf, sig = sig)
+  
+  # STAGE 1: Is X_n an ARH(1) process (that is, X_n vs X_{n-1} FLMFR)?
+  cat("\nSTAGE 1\n")
+  testing_ARHz <- ARHz_test(X, z = z, B = B, hyp_simp = hyp_simp,
+                            hyp_comp = hyp_comp, est_method = est_method,
+                            thre_p = thre_p, thre_q = thre_q, lambda = lambda,
+                            boot_scores = boot_scores, plot_dens = plot_dens,
+                            plot_proc = plot_proc, save_fit_flm = save_fit_flm,
+                            save_boot_stats = save_boot_stats, cv_1se = cv_1se)
+  
+  # STAGE 2: F-test OU vs ARH(1) (unrestricted)
+  cat("\nSTAGE 2\n")
+  testing_F_OU <- F_stat_OU(testing_ARHz$X_flmfr, X, est_method = est_method,
+                            thre_p = thre_p, thre_q = thre_q, lambda = lambda,
+                            cv_1se = FALSE, verbose = FALSE)
+  F_stat <- testing_F_OU$F_stat
+  F_stat_ast <- theta_est_ast <- rep(0, B)
+  
+  if (verbose) {
+    
+    pb <- txtProgressBar(max = B, style = 3)
+    
+  }
+  
+  beta_est  <- testing_F_OU$pred_OU$theta_est
+  sigma_est <- abs(optimize(mce, r = as.vector(X$stoch_proc$data),
+                            Delta = 1/(length(t) - 1), interval = c(0,2))$minimum)
+  
+  par.sde_ast       <- par.sde
+  par.sde_ast$beta  <- beta_est
+  par.sde_ast$alpha <- 0          # centered process, mu = 0
+  par.sde_ast$sigma <- sigma_est
+  
+  for (b in 1:B) {
+    
+    # Simulating bootstrap replicates of X, with theta_est as the true parameter
+    X_ast <- r_stoch_proc(n, t = t, par.sde = par.sde_ast, mu = 0, X0 = 0,
+                          warm_up = warm_up, type = "CKLS", model = "OU",
+                          verbose = FALSE, plot = FALSE)
+    
+    # Converting X_ast into a FLMFR X_n vs X_{n-1}
+    X_flmfr_ast <- ARH_to_FLMFR(X_ast[["fstoch_proc"]], z)
+    
+    # Computing bootstrap F-statistics
+    testing_F_OU_ast <- F_stat_OU(X_flmfr_ast, X_ast, est_method = est_method,
+                                  thre_p = thre_p, thre_q = thre_q,
+                                  lambda = lambda, cv_1se = FALSE,
+                                  verbose = FALSE)
+    theta_est_ast[b] <- testing_F_OU_ast$pred_OU$theta_est
+    F_stat_ast[b] <- testing_F_OU_ast$F_stat
+    
+    # Display progress
+    if (verbose) {
+      
+      setTxtProgressBar(pb, b)
+      
+    }
+  }
+  
+  # Approximation of the p-value by MC
+  p_value_F_test <- mean(F_stat < F_stat_ast)
+  
+  # Return htest object
+  meth <- "Two-stages procedure for testing if X is as an OU"
+  data_name <- paste(deparse(substitute(Y)), deparse(substitute(X)),
+                     sep = " ~ ")
+  result <-
+    structure(list(statistic =
+                     c("ARH(0)-stat" = testing_ARHz$testing_simple$statistic,
+                       "ARH(1)-stat" = testing_ARHz$testing_comp$statistic,
+                       "F-stat OU" = F_stat),
+                   p.value = c("GOF ARH(0)" = testing_ARHz$testing_simple$p.value,
+                               "GOF ARH(1)" = testing_ARHz$testing_comp$p.value,
+                               "F-test OU" = p_value_F_test),
+                   boot_statistics =
+                     c("GOF ARH(0)" = testing_ARHz$testing_simple$boot_statistics,
+                       "GOF ARH(1)" = testing_ARHz$testing_comp$boot_statistics,
+                       "F-test" = F_stat_ast),
+                   method = meth,
+                   parameter = testing_ARHz$testing_comp$parameter,
+                   p = testing_ARHz$testing_comp$p,
+                   q = testing_ARHz$testing_comp$q,
+                   fit_flm = testing_ARHz$testing_comp$fit_flm,
+                   theta_est = testing_F_OU$pred_OU$theta_est,
+                   boot_theta_est = theta_est_ast, data.name = data_name))
+  class(result) <- "htest"
+  return(result)
+  
+}
+```
+</details>
+
+  
 
 Real-data application
 ------------
@@ -521,7 +843,7 @@ Motivated by the extensive use of diffusion processes, the three datasets consid
 * [`GBPUSD_2019_5min.csv` file](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/data/GBPUSD_2019_5min.csv): British pound-US Dollar (GBPUSD) high-frequency (5-minutes) exchange rates.
 
 
-Figure~\ref{fig:sde} shows the exchange rates (top)  with $73\,440$ observations, and the splitted paths (bottom) $\left\lbrace \mathcal{X}_i (t) \right\rbrace_{i=1,\ldots,n}$ featuring $n=255$ daily curves. The daily curves are valued in $\mathbb{H} = L^2 \left([0,1], \mathcal{B}_{[0,1]}, \lambda + \delta_{(1)} \right)$, where the interval $[0,1]$ accounts for a 1-day window,  discretized in $288$ equispaced grid points. Table~\ref{tab:pval} shows the empirical $p$-values for the three datasets, at each of the two-stages defined in \textbf{Algorithm~\ref{al:testOU}}. We use again the Bonferroni correction to counteract the problem of two comparisons. Note that the null hypothesis of OU process in the EURGBP series is rejected, at a 5\% level, since it does not seem to follow an stationary ARH(1) process when the annual trajectory is splitted into daily curves.
+**to be written**
     	
 
 License
