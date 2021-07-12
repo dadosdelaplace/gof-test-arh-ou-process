@@ -34,7 +34,7 @@ MLE_theta <- function(sde_OU) {
 #                    par.sde = list("alpha" = 0, "beta" = 1.5,
 #                                   "sigma" = sqrt(1e-2)),
 #                    warm_up = -1, model = "OU")
-# pred_OU <- ARH_pred_OU(OU, thre_p = 0.999, fpc = TRUE)
+# pred_OU <- ARH_pred_OU(OU, thre_p = 0.995, fpc = TRUE)
 #
 ARH_pred_OU <- function(OU, thre_p = 0.95, fpc = TRUE, centered = FALSE) {
   
@@ -110,8 +110,8 @@ ARH_pred_OU <- function(OU, thre_p = 0.95, fpc = TRUE, centered = FALSE) {
 #
 #
 
-F_stat_OU <- function(X_flmfr, X, est_method = "fpcr_l1s", thre_p = 0.99,
-                      thre_q = 0.99, lambda = NULL, cv_1se = FALSE,
+F_stat_OU <- function(X_flmfr, X, est_method = "fpcr_l1s", thre_p = 0.995,
+                      thre_q = 0.995, lambda = NULL, cv_1se = FALSE,
                       tol = 1e-2) {
   
   ## RESTRICTED OU MODEL: X as an ARH(1) (as a particular case of FLMFR)
@@ -283,7 +283,7 @@ ARH_to_FLMFR <- function(Z, p, centered = FALSE) {
 #                    par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.1),
 #                    warm_up = -1, model = "OU")
 # testing_ARHp <- ARHp_test(OU, p = 1, B = 1000, hyp_simp = TRUE, hyp_comp = TRUE,
-#                    est_method = "fpcr", thre_p = 0.99, thre_q = 0.99)
+#                    est_method = "fpcr", thre_p = 0.995, thre_q = 0.995)
 #  
 ARHp_test <- function(X, p = 1, B = 1000, hyp_simp = FALSE, hyp_comp = TRUE,
                       est_method = "fpcr", thre_p = 0.95, thre_q = 0.95,
@@ -353,7 +353,7 @@ ARHp_test <- function(X, p = 1, B = 1000, hyp_simp = FALSE, hyp_comp = TRUE,
 # 
 # res <- test_gof_OU(150, t = seq(0, 1, l = 101), warm_up = -1,
 #                    type = "other", p = 1, B = 1000, X0 = 0.08,
-#                    est_method = "fpcr_l1s", thre_p = 0.99, thre_q = 0.99,
+#                    est_method = "fpcr_l1s", thre_p = 0.995, thre_q = 0.995,
 #                    verbose = TRUE, drf = drf, sig = sig)
 # 
 # res$p.value  # p-values Stage 1 and 2
