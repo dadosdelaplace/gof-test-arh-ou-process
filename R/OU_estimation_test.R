@@ -148,36 +148,36 @@ MLE_theta <- function(sde_OU) {
 #                    par.sde = list("alpha" = 0, "beta" = 0.5,
 #                                   "sigma" = 0.1),
 #                    warm_up = -1, model = "OU")
-# OU_FLMFR <- ARH_to_FLMFR(OU$fstoch_proc, 1)
+# OU_FLMFR <- ARH_to_FLMFR(ARHz = OU$fstoch_proc, z = 1)
 # plot(OU_FLMFR$X_fdata) # Plotting functional X variable
 # plot(OU_FLMFR$Y_fdata) # Plotting functional Y variable
-ARH_to_FLMFR <- function(Z, p, centered = FALSE) {
+ARH_to_FLMFR <- function(ARHz, z, centered = FALSE) {
   
   # Common settings: sample size and number of grids where it is evaluated
-  n <- dim(Z)[1]
-  n_grids <- length(Z[["argvals"]])
+  n <- dim(ARHz)[1]
+  n_grids <- length(ARHz[["argvals"]])
   
   # Data should be centered to be transformed
   if (!centered) {
     
-    Z <- Z - func_mean(Z)
+    ARHz <- ARHz - func_mean(ARHz)
     
   }
   
   # We will remove the first p trajectories since Y_n = X_{n + 1}
-  Y <- Z[(p + 1):n, ]
+  Y <- ARHz[(z + 1):n, ]
   
-  if (p == 1) {
+  if (z == 1) {
     
-    X <- Z[1:(n - 1), ]
+    X <- ARHz[1:(n - 1), ]
     
   } else {
     
-    X <- fda.usc::fdata(matrix(0, n - p, n_grids), argvals = Z[["argvals"]])
+    X <- fda.usc::fdata(matrix(0, n - z, n_grids), argvals = ARHz[["argvals"]])
     for (j in 1:p) {
       
-      s <- (1:n_grids)[Z[["argvals"]] >= (j - 1)/p & Z[["argvals"]] <= j/p]
-      X[["data"]] <- X[["data"]] + Z[["data"]][1:(n - j), s * p - (j - 1)]
+      s <- (1:n_grids)[ARHz[["argvals"]] >= (j - 1)/z & ARHz[["argvals"]] <= j/z]
+      X[["data"]] <- X[["data"]] + ARHz[["data"]][1:(n - j), s * z - (j - 1)]
       
     }
   }
@@ -207,7 +207,7 @@ ARH_pred_OU <- function(OU, thre_p = 0.95, fpc = TRUE,
   
   # If fpc = TRUE, the OU is firstly decomposed into the first FPC
   if (fpc) {
-  
+    
     fpc_OU <- fpc(OU$fstoch_proc, n_fpc = n) # OU$f_stoch_proc is internally centered
     s <- cumsum(fpc_OU[["d"]]^2) # Cumulative empirical explained variance
     p_thre <- 1:which(s/s[length(s)] > thre_p)[1] # The first FPC > thre_p
@@ -225,14 +225,14 @@ ARH_pred_OU <- function(OU, thre_p = 0.95, fpc = TRUE,
     OU_fpc <- OU$f_stoch_proc - f_mean
     
   }
-
+  
   # Maximum Likelihood Estimator (MLE) of theta
   theta_est <- MLE_theta(OU$stoch_proc)
   
   # Computing the plug-in predictor \widehat{X}_n for each n, according to the
   # ARH1 framework proposed in Alvarez-Liebana et al. (2016)
   predictor_OU <- OU_fpc # Already centered!
-
+  
   # Autocorrelation operator given by rho(X)(t) = exp(-theta_hat * t) * X(b)
   for (nn in 2:n) {
     
@@ -405,8 +405,7 @@ F_stat_OU <- function(X_flmfr, X, est_method = "fpcr_l1s", thre_p = 0.995,
 #     H0: X_n = rho(X_{n-1}) from an OU process
 #     H1: X_n = rho(X_{n-1}) an alternative FLMFR model
 #
-# Example generating the Ait-Sahalia (AS) model:
-#
+# Example: testing Ait-Sahalia (AS) model:
 # drf <- expression(0.00107/x - 0.0517 + 0.877*x - 4.604*x^2)  # SDE drift function
 # sig <- expression(0.8 * x^1.5)                               # SDE diffusion function
 # AS_test <- test_gof_OU(150, t = seq(0, 1, l = 101), warm_up = -1,
@@ -414,6 +413,14 @@ F_stat_OU <- function(X_flmfr, X, est_method = "fpcr_l1s", thre_p = 0.995,
 #                        est_method = "fpcr_l1s", thre_p = 0.995, thre_q = 0.995,
 #                        verbose = TRUE, drf = drf, sig = sig)
 # AS_test$p.value  # p-values Stage 1 and 2
+#
+# Example: testing OU model
+# OU_test <-
+#   test_gof_OU(150, t = seq(0, 1, l = 101), warm_up = -1,
+#               par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.05),
+#               type = "CKLS", z = 1, B = 50, est_method = "fpcr_l1s",
+#               thre_p = 0.995, thre_q = 0.995, verbose = TRUE)
+# OU_test$p.value  # p-values Stage 1 and 2
 test_gof_OU <- function(n, t = seq(0, 1, l = 71),
                         par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 1),
                         mu = par.sde[["alpha"]] / par.sde[["beta"]], X0 = mu,
@@ -517,6 +524,4 @@ test_gof_OU <- function(n, t = seq(0, 1, l = 71),
   return(result)
   
 }
-
-
 
