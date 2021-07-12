@@ -3,7 +3,7 @@ Goodness-of-fit test for autoregressive functional processes and specification t
 Authors: Alejandra López-Pérez and Javier Álvarez Liébana (@DadosDeLaplace)
 -->
 
-Goodness-of-fit test for autoregressive functional processes and specification test for OU process from a functional perspective
+Goodness-of-fit test for autoregressive functional processes and specification test for diffusion processes
 ======
 
 [![License:
@@ -14,35 +14,386 @@ GPLv3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org
 Overview
 -------
 
-Software companion for the article [A goodness-of-fit test for functional time series: a specification test to SDE (López-Perez, Álvarez-Liébana, González-Manteiga and Febrero Bande, 2021)](https://arxiv.org/), currently submitted in JOURNAL. It implements the proposed estimators and goodness-of-fit tests for 
-autoregressive functional processes of order one in Hilbert spaces (ARH(1) processes), as well as the specification test for diffusion processes, focused on testing [Ornstein-Uhlenbeck processes](https://www.sciencedirect.com/science/article/abs/pii/S016771521630044X).
+Software companion for the article [TITLE X (López-Perez, Álvarez-Liébana, González-Manteiga and Febrero Bande, 2021)](https://arxiv.org/), currently submitted in THE JOURNAL X. It implements the proposed estimators and **goodness-of-fit tests for 
+autoregressive functional processes of order one in Hilbert spaces (ARH(1) processes)**, as well as a **specification test for diffusion processes**, focused on testing [Ornstein-Uhlenbeck processes](https://www.sciencedirect.com/science/article/abs/pii/S016771521630044X).
 
 It also allows to replicate simulations and the data application presented.
 
 Installation
 ------------
 
-Get the released version from GitHub:
+Get the released version from [GitHub (Download ZIP button)](https://github.com/dadosdelaplace/gof-test-arh-ou-process/archive/refs/heads/main.zip), including [R codes](https://github.com/dadosdelaplace/gof-test-arh-ou-process/tree/main/R), [plots](https://github.com/dadosdelaplace/gof-test-arh-ou-process/tree/main/plots) and [data](https://github.com/dadosdelaplace/gof-test-arh-ou-process/tree/main/data). The installation of the following packages will be required:
 
-``` r
-# Install the package (devtools package is required to be installed)
-devtools::install_github()
+* `sde`: package to simulate Stochastic Differential Equations (SDEs).
+* `ggplot2`, `latex2exp`, `ggthemes`: packages related with visualizing data.
+* `tidyverse`: a collection of R packages designed for data science.
+* [`goffda`](https://github.com/egarpor/goffda): package for performing a goodness-of-fit test for the functional linear model with functional response
+* `fda.usc`: package for managing functional data objects in R.
 
-# Load package
-library(goffda)
+```r
+# Install and load packages
+if(!require(sde)) install.packages("sde", repos = repos)
+if(!require(ggplot2)) install.packages("ggplot2", repos = repos)
+if(!require(latex2exp)) install.packages("latex2exp", repos = repos)
+if(!require(ggthemes)) install.packages("ggthemes", repos = repos)
+if(!require(goffda)) install.packages("goffda", repos = repos)
+if(!require(fda.usc)) install.packages("fda.usc", repos = repos)
+if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
 ```
 
+Auxiliary functions
+------------
+
+#### `r_stoch_proc()`
+
+* Description: function to simulate stochastic processes from a functional perspective, splitted the whole trajectories into subintervals
+* Main inputs:
+  * `n`: sample size (numer of functional trajectories valued in `t`).
+  * `t`: grid points where functional trajectories are valued.
+  * `par.sde`: a list of parameters to introduce if the model is generated nested in the CKLS parametric family (`type = CKLS`). Otherwise, wnevaluated expressions for drift (`drf`) and sigma (`sig`) functions can be also provided.
+  * `warm_up`: number of trajectories to be discarded.
+  * `model`: type of CKLS model to be simulate.
+* Outputs: a list with the following elements
+  * `fstoch_proc`: stochastic process as a `fdata` object splitted `n` trajectories.
+  * `stoch_proc`: stochastic process as a `fdata` object but with a single trajectories.
+
+```r
+# Example
+OU <- r_stoch_proc(500, seq(0, 1, l = 101), par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.1),
+                   warm_up = -1, model = "OU")
+```
+
+<details><summary>Code</summary>
+
+```r
+r_stoch_proc <- function(n, t, par.sde = list("alpha" = 0, "beta" = 0.5,
+                                              "sigma" = 1),
+                         mu = par.sde[["alpha"]] / par.sde[["beta"]], X0 = mu,
+                         warm_up = 50, type = "CKLS", model = "OU",
+                         delta = 1/(length(t) - 1), verbose = FALSE,
+                         plot = FALSE, drf = NULL, sig = NULL) {
+  
+  # Generating from a CKLS model
+  # CKLS model: dX_t = (alpha - beta*X_t) dt + sigma * X_t^gamma dW_t
+  #
+  # OU model: dX_t = (alpha - beta*X_t) dt + sigma dW_t
+  #           gamma = 0; beta = theta; alpha = theta * mu
+  #
+  if (type == "CKLS") {
+    
+    # X0 as initial condition at t0, N the number of points to be generated
+    # between [t0, n * t1], delta denotes the discretization step and warm_up
+    # the number of trajectorias to be discarded (note that N + 1 are generated)
+    suppressMessages(
+      sde_proc <- sde.sim(X0 = X0, theta = c(par.sde$alpha, par.sde$beta,
+                                             par.sde$sigma),
+                          N = (n * length(t)) + warm_up, t0 = t[1],
+                          T = n * t[length(t)], delta = delta, model = model)
+    )
+    
+    if (warm_up >= 0) {
+      
+      sde_proc <- sde_proc[-(1:(warm_up + 1))]
+      
+    }
+  } else if (type == "other") {
+    
+    suppressMessages(
+      sde_proc <- sde.sim(X0 = X0, N = (n * length(t)) + warm_up, t0 = t[1],
+                          T = n * t[length(t)], delta = delta, drift = drf, sigma = sig)
+    )
+    
+  }
+  
+  # Centered SDE
+  mu_est    <- mean(sde_proc)
+  sde_proc  <- (sde_proc - mu_est)
+  
+  # SDE as a functional object with n = 1
+  stoch_proc <- fdata(t(as.matrix(sde_proc)),
+                      argvals = seq(t[1], t[length(t)] * n, l = length(t) * n))
+  
+  # SDE as a set of functional trajectories (assumed to be centered)
+  fstoch_proc <- fdata(t(matrix(sde_proc, nrow = length(t))), argvals = t)
+  
+  # 
+  # Plot the functional trajectories
+  if (plot) {
+    
+    par(mfrow = c(1, 2))
+    plot(stoch_proc, main = "SDE")
+    plot(fstoch_proc, main = "SDE as functional data")
+    par(mfrow = c(1, 1))
+    
+  }
+  
+  # Output
+  return(list("fstoch_proc" = fstoch_proc, "stoch_proc" = stoch_proc))
+  
+}
+
+```
+</details>
+
+#### `mce()`
+
+* Description: function to be optimized for estimating the volatility (sigma) of OU process, given an OU process as a vectorial one-dimensional stochastic process
+* Main inputs:
+  * `sigma`: grid of values to be chosen.
+  * `r`: OU process as a vectorial one-dimensional stochastic process
+  * `Delta`: discretization step.
+* Output: the root-n consistent estimator of sigma, based on the proposal by [Corradi and White, 1999](https://onlinelibrary.wiley.com/doi/abs/10.1111/1467-9892.00136)
+
+
+```r
+# Example:
+OU <- r_stoch_proc(500, seq(0, 1, l = 101), par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.1),
+                   warm_up = -1, model = "OU")
+optimize(mce, r = as.vector(OU$stoch_proc$data), Delta = 1/(length(OU$fstoch_proc$argvals) - 1),
+         interval = c(0, 2))$minimum
+```
+
+<details><summary>Code</summary>
+
+```r
+mce <- function(sigma, r, Delta){
+  y    <- diff(r)
+  n    <- length(y)
+  suma <- sum(log(sigma^2) + (y^2) / (Delta * sigma^2))
+  return(suma / n)
+}
+```
+</details>
+  
+
+#### `MLE_theta()`
+
+* Description: function for computing the MLE estimator of theta of an OU process
+* Main inputs:
+  * `sde_OU`: OU process given as a fdata (fda.usc package) object with n = 1
+* Output: the MLE strongly-consistent estimator of theta, based on the proposal by [Álvarez-Liébana et al., 2016](https://www.sciencedirect.com/science/article/pii/S016771521630044X)
+
+
+```r
+# Example:
+OU <- r_stoch_proc(500, seq(0, 1, l = 101), par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 1),
+                   warm_up = -1, model = "OU")
+MLE_theta(OU$stoch_proc)
+
+```
+
+<details><summary>Code</summary>
+
+```r
+MLE_theta <- function(sde_OU) {
+  
+  # Grid points where the whole OU takes values: a set of subintervals 
+  t_OU <- sde_OU[["argvals"]] 
+  
+  # Maximum Likelihood Estimator (MLE) of theta
+  MLE_theta <- sum(as.vector(sde_OU[["data"]])[2:length(t_OU)] *
+                     diff(as.vector(sde_OU[["data"]]))) /
+    goffda::integral1D(fx = as.vector(sde_OU[["data"]])^2, t = t_OU)
+  
+  # Output: MLE of theta
+  return(MLE_theta)
+  
+}
+               
+```
+               
+</details>
+  
+
+##### `ARH_to_FLMFR()`
+  
+* Description: function for converting functional stochastic process into a FLMFR
+* Main inputs:
+  * `ARHz`: ARH process as a `fdata` object with `n` trajectories.
+  * `z`: order of the ARH process (ARH(z) process).
+  * `centered`: flag to indicate if ARH process is centered; default to `FALSE`.
+* Output: `X_fdata` and `Y_fdata`, as functional covariates and responses, according to the characterization proposed by [López-Perez et al., 2021](arxiv.org/...)
+  
+```r
+# Example:
+OU <- r_stoch_proc(500, seq(0, 1, l = 101),  par.sde = list("alpha" = 0, "beta" = 0.5, "sigma" = 0.1),
+                   warm_up = -1, model = "OU")
+OU_FLMFR <- ARH_to_FLMFR(OU$fstoch_proc, 1)
+plot(OU_FLMFR$X_fdata) # Plotting functional X variable
+plot(OU_FLMFR$Y_fdata) # Plotting functional Y variable
+```
+
+<details><summary>Code</summary>
+
+```r
+  
+ARH_to_FLMFR <- function(ARHz, z, centered = FALSE) {
+  
+  # Common settings: sample size and number of grids where it is evaluated
+  n <- dim(ARHz)[1]
+  n_grids <- length(ARHz[["argvals"]])
+  
+  # Data should be centered to be transformed
+  if (!centered) {
+    
+    ARHz <- ARHz - func_mean(ARHz)
+    
+  }
+  
+  # We will remove the first p trajectories since Y_n = X_{n + 1}
+  Y <- ARHz[(z + 1):n, ]
+  
+  if (z == 1) {
+    
+    X <- ARHz[1:(n - 1), ]
+    
+  } else {
+    
+    X <- fda.usc::fdata(matrix(0, n - z, n_grids), argvals = ARHz[["argvals"]])
+    for (j in 1:z) {
+      
+      s <- (1:n_grids)[ARHz[["argvals"]] >= (j - 1)/z & ARHz[["argvals"]] <= j/z]
+      X[["data"]] <- X[["data"]] + ARHz[["data"]][1:(n - j), s * z - (j - 1)]
+      
+    }
+  }
+  
+  # Output
+  return(list("X_fdata" = X, "Y_fdata" = Y))
+}
+```
+</details>
+  
+##### `ARH_pred_OU()`
+  
+* Description: function for predicting an OU as an ARH(1) process
+* Main inputs:
+  * `OU`: OU process as the list provided by `r_stoch_proc()`.
+  * `thre_p`: order of the ARH process (ARH(z) process).
+  * `fpc`: flag to indicate if the functional process should be firstly decomposed into a truncated set of Functional Principal Components (FPC).
+  * `centered = FALSE`: flag to indicate if ARH process is centered; default to `FALSE`.
+* Output: a list with the following elements
+  * `theta_est`: MLE estimator of theta, performed by function `MLE_theta()`.
+  * `OU`: input OU process.
+  * `predictor_OU`: OU plug-in predictor according to [Álvarez-Liébana et al., 2016](https://www.sciencedirect.com/science/article/pii/S016771521630044X)
+  * `residuals`: functional errors.
+
+  
+```r
+# Example
+OU <- r_stoch_proc(1500, seq(0, 1, l = 101), par.sde = list("alpha" = 0, "beta" = 1.5, "sigma" = sqrt(1e-2)),
+                   warm_up = -1, model = "OU")
+pred_OU <- ARH_pred_OU(OU, thre_p = 0.995, fpc = TRUE)
+```
+  
+<details><summary>Code</summary>
+
+```r
+ARH_pred_OU <- function(OU, thre_p = 0.95, fpc = TRUE,
+                        centered = FALSE) {
+  
+  # Sample size and grid points where ARH(1) paths take values
+  t <- OU$fstoch_proc[["argvals"]] # Interval [a, b] (L2[a, b] as the Hilbert)
+  n <- dim(OU$fstoch_proc[["data"]])[1] # Number of trajectories
+  
+  # Functional mean
+  f_mean <- func_mean(OU$fstoch_proc)
+  
+  # If fpc = TRUE, the OU is firstly decomposed into the first FPC
+  if (fpc) {
+  
+    fpc_OU <- fpc(OU$fstoch_proc, n_fpc = n) # OU$f_stoch_proc is internally centered
+    s <- cumsum(fpc_OU[["d"]]^2) # Cumulative empirical explained variance
+    p_thre <- 1:which(s/s[length(s)] > thre_p)[1] # The first FPC > thre_p
+    
+    # Rebuilding the OU process (as fdata). Note that OU_fpc is centered
+    OU_fpc <- fpc_to_fdata(X_fpc = fpc_OU, coefs = fpc_OU$scores[, p_thre])
+    
+    # Recomputing the whole OU (as sde) as a fdata object with n = 1
+    OU$stoch_proc <-
+      fdata(as.vector(t((OU_fpc + f_mean)$data)),
+            argvals = seq(t[1], t[length(t)] * n, l = length(t) * n))
+    
+  } else {
+    
+    OU_fpc <- OU$f_stoch_proc - f_mean
+    
+  }
+
+  # Maximum Likelihood Estimator (MLE) of theta
+  theta_est <- MLE_theta(OU$stoch_proc)
+  
+  # Computing the plug-in predictor \widehat{X}_n for each n, according to the
+  # ARH1 framework proposed in Alvarez-Liebana et al. (2016)
+  predictor_OU <- OU_fpc # Already centered!
+
+  # Autocorrelation operator given by rho(X)(t) = exp(-theta_hat * t) * X(b)
+  for (nn in 2:n) {
+    
+    predictor_OU[["data"]][nn, ] <- exp(-theta_est * t) *
+      predictor_OU[["data"]][nn - 1, length(t)]
+    
+  }
+  
+  # Since f_mean was removed (predictor_OU = OU_fpc), we add it
+  if (!centered) {
+    
+    predictor_OU <- predictor_OU + f_mean
+    
+  }
+  
+  # Functional residuals (just 2:n since eps_1 "does not exist")
+  residuals <- OU$fstoch_proc[2:n, ] - predictor_OU[2:n, ]
+  
+  # Output list
+  return(list("theta_est" = theta_est, "OU" = OU, "predictor_OU" = predictor_OU,
+              "residuals" = residuals))
+  
+}
+```
+</details>
+
+
+
+Main functions
+------------
+
+Real-data application
+------------
+
+Motivated by the extensive use of diffusion processes, the three datasets considered consist on currency pair rates Euro-British pound (EURGBP), Euro-US Dollar (EURUSD), British pound-US Dollar (GBPUSD), determined in the [foreign exchange market (the largest and most liquid financial market)](www.histdata.com), such that data was recorded every 5 minutes from January 1, 2019 to December 31, 2019.
+
+* [`EURGBP_2019_5min.csv` file](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/data/EURGBP_2019_5min.csv): Euro-British pound (EURGBP) high-frequency (5-minutes) exchange rates.
+* [`EURUSD_2019_5min.csv` file](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/data/EURUSD_2019_5min.csv): Euro-US Dollar (EURUSD) high-frequency (5-minutes) exchange rates.
+* [`GBPUSD_2019_5min.csv` file](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/data/GBPUSD_2019_5min.csv): British pound-US Dollar (GBPUSD) high-frequency (5-minutes) exchange rates.
+
+
+Figure~\ref{fig:sde} shows the exchange rates (top)  with $73\,440$ observations, and the splitted paths (bottom) $\left\lbrace \mathcal{X}_i (t) \right\rbrace_{i=1,\ldots,n}$ featuring $n=255$ daily curves. The daily curves are valued in $\mathbb{H} = L^2 \left([0,1], \mathcal{B}_{[0,1]}, \lambda + \delta_{(1)} \right)$, where the interval $[0,1]$ accounts for a 1-day window,  discretized in $288$ equispaced grid points. Table~\ref{tab:pval} shows the empirical $p$-values for the three datasets, at each of the two-stages defined in \textbf{Algorithm~\ref{al:testOU}}. We use again the Bonferroni correction to counteract the problem of two comparisons. Note that the null hypothesis of OU process in the EURGBP series is rejected, at a 5\% level, since it does not seem to follow an stationary ARH(1) process when the annual trajectory is splitted into daily curves.
+    	
+
+License
+----------
+
+[![License:
+GPLv3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+<!-- <img src="" alt="goffda  hexlogo" align="right" width="200" style="padding: 0 15px; float: right;"/> -->
 
 **Feel free to use** any of the contents but don't forget to cite them.
 
 References
 ----------
 
-García-Portugués, E., Álvarez-Liébana, J., Álvarez-Pérez, G. and
-González-Manteiga, W. (2021). A goodness-of-fit test for the functional
-linear model with functional response. *Scand J Statist.* 2021; 48: 502– 528.
-<a href="https://doi.org/10.1111/sjos.12486" class="uri">https://doi.org/10.1111/sjos.12486</a>
-
 López-Perez, A., Álvarez-Liébana, J., González-Manteiga, W. and Febrero-Bande, M. (2021). 
 A goodness-of-fit test for functional time series: a specification test to SDE. *arXiv: *
 <a href="https://arxiv.org" class="uri">https://arxiv.org</a>
+
+García-Portugués, E., Álvarez-Liébana, J., Álvarez-Pérez, G. and
+González-Manteiga, W. (2021). A goodness-of-fit test for the functional
+linear model with functional response. *Scand J Statist.* 2021; 48: 502-528.
+<a href="https://doi.org/10.1111/sjos.12486" class="uri">https://doi.org/10.1111/sjos.12486</a>
+
+Álvarez-Liébana, J., Bosq, D., and Ruiz-Medina, M. D. (2016). Consistency of the plug-in functional predictor of the Ornstein–Uhlenbeck process in Hilbert and Banach spaces. *Stat. Probab. Letters* 2016; 117: 12-22. <a href="https://doi.org/10.1016/j.spl.2016.04.023" class="uri">https://doi.org/10.1016/j.spl.2016.04.023</a>
+
+Corradi, V. and White, H. (1999). Specification Tests for the Variance of a Diffusion. *J. Time Ser. Anal. 1999; 20: 253-270. <a href="https://doi.org/10.1111/1467-9892.00136" class="uri">https://doi.org/10.1111/1467-9892.00136</a>
+
