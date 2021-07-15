@@ -25,11 +25,14 @@ It also allows to replicate simulations and the data application presented.
 # Install and load packages
 if(!require(sde)) install.packages("sde", repos = repos)
 if(!require(ggplot2)) install.packages("ggplot2", repos = repos)
-if(!require(latex2exp)) install.packages("latex2exp", repos = repos)
 if(!require(ggthemes)) install.packages("ggthemes", repos = repos)
+if(!require(latex2exp)) install.packages("latex2exp", repos = repos)
 if(!require(goffda)) install.packages("goffda", repos = repos)
 if(!require(fda.usc)) install.packages("fda.usc", repos = repos)
 if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
+if(!require(lubridate)) install.packages("lubridate", repos = repos)
+if(!require(glue)) install.packages("glue", repos = repos)
+if(!require(reshape2)) install.packages("reshape2", repos = repos)
 ```
 
 ![](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/plots/fig2a_plotOU.png)
@@ -842,8 +845,71 @@ Motivated by the extensive use of diffusion processes, the three datasets consid
 * [`EURUSD_2019_5min.csv` file](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/data/EURUSD_2019_5min.csv): Euro-US Dollar (EURUSD) high-frequency (5-minutes) exchange rates.
 * [`GBPUSD_2019_5min.csv` file](https://github.com/dadosdelaplace/gof-test-arh-ou-process/blob/main/data/GBPUSD_2019_5min.csv): British pound-US Dollar (GBPUSD) high-frequency (5-minutes) exchange rates.
 
+Motivated by the extensive use of diffusion processes in finance, commonly used to model currency exchange rates [Ball and Roma, 1994] and intra-day patterns in the foreign exchange market [Andersen and Bollerslev, 1997], we apply our OU specification test, in the context of **high-frequency financial data**. Unlike univariate frameworks, where a vast time window is required for getting properly sample sizes, and thus, certain properties essential for long horizon asymptotics (e.g., ergodicity) would not be achieved, we consider a finite time observation window, where the **FDA scheme allows to capture the dynamic of the process**. It is also noteworthy that, due to the high-frequency, observations are subject to market microstructure noise [Aït-Sahalia et al., 2005], interacting with the sampling frequency, that could lead to reject the null hypothesis.
+    	
+The daily curves are valued in the interval [0,1], accounts for a 1-day window, discretized in 288 equispaced grid points.
+ 
+<details><summary>Code</summary>
+```r
+# ###########################
+# PACKAGES
+# ###########################
+rm(list = ls())
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+repos <- "http://cran.us.r-project.org"
+if(!require(ggplot2)) install.packages("ggplot2", repos = repos)
+if(!require(fda.usc)) install.packages("fda.usc", repos = repos)
+if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
+if(!require(lubridate)) install.packages("lubridate", repos = repos)
+if(!require(glue)) install.packages("glue", repos = repos)
+if(!require(reshape2)) install.packages("reshape2", repos = repos)
+if(!require(latex2exp)) install.packages("latex2exp", repos = repos)
 
-**to be written**
+# Companion software
+source("./OU_estimation_test.R")
+
+# ###########################
+# DATA
+# ###########################
+
+# URL of data freely available at GitHub repository
+# https://github.com/dadosdelaplace/gof-test-arh-ou-process
+repo <- paste0("https://raw.githubusercontent.com/dadosdelaplace/",
+               "gof-test-arh-ou-process/main/data")
+url <- c(glue("{repo}/EURGBP_2019_5min.csv"),
+         glue("{repo}/EURUSD_2019_5min.csv"),
+         glue("{repo}/GBPUSD_2019_5min.csv"))
+
+# Data was extracted from histdata.com/download-free-forex-data/
+EURGBP <- read_delim(file = url[1], delim = ";")
+EURUSD <- read_delim(file = url[2], delim = ";")
+GBPUSD <- read_delim(file = url[3], delim = ";")
+
+# Preparing dates
+dates <- as.Date(as.character(EURGBP$date), format = "%Y%m%d")
+hours <- floor(as.numeric(EURGBP$hour) / 1e4)
+minutes <- floor((as.numeric(EURGBP$hour) - hours * 1e4) / 1e2)
+hourtime <- hms::as_hms(hours * 60 * 60 + minutes*60)
+
+# Build data
+data <- data.frame("dates" = dates, "hourtime" = hourtime,
+                   "day" = yday(dates), "EURGBP" = EURGBP[, 3],
+                   "EURUSD" = EURUSD[, 3], "GBPUSD" = GBPUSD[, 3])
+names(data) <- c("dates", "hourtime", "day",
+                 "EURGBP", "EURUSD", "GBPUSD")
+
+# Settings of working space: 288 daily curves recorded each 5 minutes
+t <- seq(0, 1, by = 1/(60*24/5 - 1))
+fda_data <- list()
+fda_data$EURGBP <-
+  fdata(t(matrix(data$EURGBP, nrow = length(t))), argvals = t)
+fda_data$EURUSD <-
+  fdata(t(matrix(data$EURUSD, nrow = length(t))), argvals = t)
+fda_data$GBPUSD <-
+  fdata(t(matrix(data$GBPUSD, nrow = length(t))), argvals = t)
+
+```
+</details>                  
     	
 
 License
@@ -860,7 +926,7 @@ References
 ----------
 
 López-Perez, A., Álvarez-Liébana, J., González-Manteiga, W. and Febrero-Bande, M. (2021). 
-A goodness-of-fit test for functional time series: a specification test to SDE. *arXiv: *
+A goodness-of-fit test for functional time series with applications to diffusion processes. *arXiv: *
 <a href="https://arxiv.org" class="uri">https://arxiv.org</a>
 
 García-Portugués, E., Álvarez-Liébana, J., Álvarez-Pérez, G. and
