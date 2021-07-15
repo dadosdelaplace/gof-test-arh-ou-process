@@ -18,6 +18,7 @@ if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
 if(!require(glue)) install.packages("glue", repos = repos)
 if(!require(reshape2)) install.packages("reshape2", repos = repos)
+if(!require(latex2exp)) install.packages("latex2exp", repos = repos)
 
 # Companion software
 source("./OU_estimation_test.R")
@@ -47,9 +48,10 @@ hourtime <- hms::as_hms(hours * 60 * 60 + minutes*60)
 
 # Build data
 data <- data.frame("dates" = dates, "hourtime" = hourtime,
-                   "EURGBP" = EURGBP[, 3], "EURUSD" = EURUSD[, 3],
-                   "GBPUSD" = GBPUSD[, 3])
-names(data) <- c("dates", "hourtime", "EURGBP", "EURUSD", "GBPUSD")
+                   "day" = yday(dates), "EURGBP" = EURGBP[, 3],
+                   "EURUSD" = EURUSD[, 3], "GBPUSD" = GBPUSD[, 3])
+names(data) <- c("dates", "hourtime", "day",
+                 "EURGBP", "EURUSD", "GBPUSD")
 
 # Settings of working space: 288 daily curves recorded each 5 minutes
 t <- seq(0, 1, by = 1/(60*24/5 - 1))
@@ -66,22 +68,63 @@ fda_data$GBPUSD <-
 # PLOTS
 # ###########################
 
+# Theme
+theme_set(theme_bw(base_family = "Times New Roman"))
+theme_update(text = element_text(family = "Times New Roman", size = 15),
+             axis.title.x =
+               element_text(family = "Times New Roman",
+                            hjust = .5, size = 13),
+             axis.title.y = element_text(family = "Times New Roman",
+                                         hjust = .5, size = 13),
+             plot.title =
+               element_text(face = "bold", family = "Times New Roman",
+                            size = 15),
+             legend.position = "none") # without legend
 
-# # plot SDE
-# sde_datos <- data.frame(sde_proc, len1 = 1:length(sde_proc)/288)
-# ggplot(sde_datos, aes(x = len1, y = sde_proc)) +
-#   geom_line() + 
-#   labs(x = "t", y = "exchange rate") 
-# 
-# # plot FD
-# data      <- as.data.frame(t(fstoch_proc$data)) 
-# data$id   <- t
-# plot_data <- melt(data, id.var = "id")
-# ind       <- sort(rep(1:255, nrow(data)))
-# ggplot(plot_data, aes(x = id, y = value, group = variable, colour = ind)) +
-#   geom_line()  + 
-#   labs(x = "t", y = "exchange rate", color = "day") 
-# 
+# Plotting the whole trajectories as one-dimensional sde
+fig2a <- 
+  ggplot(data, aes(x = dates, y = EURGBP, color = day)) +
+  geom_line(size = 1.3) + # width of line
+  labs(x = "dates",  y = "EURGBP")
+fig2b <- 
+  ggplot(data, aes(x = dates, y = EURUSD, color = day)) +
+  geom_line(size = 1.3) + # width of line
+  labs(x = "dates",  y = "EURUSD")
+fig2c <- 
+  ggplot(data, aes(x = dates, y = GBPUSD, color = day)) +
+  geom_line(size = 1.3) + # width of line
+  labs(x = "dates",  y = "GBPUSD")
+
+# Plotting as FD
+EURGBP_fd <- data.frame("t" = rep(fda_data$EURGBP$argvals,
+                                  dim(fda_data$EURGBP)[1]),
+                        "x" = as.numeric(t(fda_data$EURGBP$data)),
+                        "n" = rep(1:dim(fda_data$EURGBP)[1],
+                                  each = dim(fda_data$EURGBP)[2]))
+EURUSD_fd <- data.frame("t" = rep(fda_data$EURUSD$argvals,
+                                  dim(fda_data$EURUSD)[1]),
+                        "x" = as.numeric(t(fda_data$EURUSD$data)),
+                        "n" = rep(1:dim(fda_data$EURUSD)[1],
+                                  each = dim(fda_data$EURUSD)[2]))
+GBPUSD_fd <- data.frame("t" = rep(fda_data$GBPUSD$argvals,
+                                  dim(fda_data$GBPUSD)[1]),
+                        "x" = as.numeric(t(fda_data$GBPUSD$data)),
+                        "n" = rep(1:dim(fda_data$GBPUSD)[1],
+                                  each = dim(fda_data$GBPUSD)[2]))
+
+fig2d <- 
+  ggplot(EURGBP_fd, aes(x = t, y = x, group = n, color = n)) +
+  geom_line(size = 0.7) + # width of line
+  labs(x = "t",  y = TeX("$X_{n}(t)$"))
+fig2e <- 
+  ggplot(EURUSD_fd, aes(x = t, y = x, group = n, color = n)) +
+  geom_line(size = 0.7) + # width of line
+  labs(x = "t",  y = TeX("$X_{n}(t)$"))
+fig2f <- 
+  ggplot(GBPUSD_fd, aes(x = t, y = x, group = n, color = n)) +
+  geom_line(size = 0.7) + # width of line
+  labs(x = "t",  y = TeX("$X_{n}(t)$"))
+
 
 # ###########################
 # TESTING EURGBP DATA
