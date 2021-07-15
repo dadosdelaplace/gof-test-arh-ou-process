@@ -86,14 +86,22 @@ fig2a <-
   ggplot(data, aes(x = dates, y = EURGBP, color = day)) +
   geom_line(size = 1.3) + # width of line
   labs(x = "dates",  y = "EURGBP")
+# Save as 8x4 png 
+ggsave("fig2a_real_data.png", width = 8, height = 5)
+
 fig2b <- 
   ggplot(data, aes(x = dates, y = EURUSD, color = day)) +
   geom_line(size = 1.3) + # width of line
   labs(x = "dates",  y = "EURUSD")
+# Save as 8x4 png 
+ggsave("fig2b_real_data.png", width = 8, height = 5)
+
 fig2c <- 
   ggplot(data, aes(x = dates, y = GBPUSD, color = day)) +
   geom_line(size = 1.3) + # width of line
   labs(x = "dates",  y = "GBPUSD")
+# Save as 8x4 png 
+ggsave("fig2c_real_data.png", width = 8, height = 5)
 
 # Plotting as FD
 EURGBP_fd <- data.frame("t" = rep(fda_data$EURGBP$argvals,
@@ -115,15 +123,23 @@ GBPUSD_fd <- data.frame("t" = rep(fda_data$GBPUSD$argvals,
 fig2d <- 
   ggplot(EURGBP_fd, aes(x = t, y = x, group = n, color = n)) +
   geom_line(size = 0.7) + # width of line
-  labs(x = "t",  y = TeX("$X_{n}(t)$"))
+  labs(x = "t",  y = TeX("$X_{n}(t)$ (EURGBP)"))
+# Save as 8x4 png 
+ggsave("fig2d_real_data.png", width = 8, height = 5)
+
 fig2e <- 
   ggplot(EURUSD_fd, aes(x = t, y = x, group = n, color = n)) +
   geom_line(size = 0.7) + # width of line
-  labs(x = "t",  y = TeX("$X_{n}(t)$"))
+  labs(x = "t",  y = TeX("$X_{n}(t)$ (EURUSD)"))
+# Save as 8x4 png 
+ggsave("fig2e_real_data.png", width = 8, height = 5)
+
 fig2f <- 
   ggplot(GBPUSD_fd, aes(x = t, y = x, group = n, color = n)) +
   geom_line(size = 0.7) + # width of line
-  labs(x = "t",  y = TeX("$X_{n}(t)$"))
+  labs(x = "t",  y = TeX("$X_{n}(t)$ (GBPUSD)"))
+# Save as 8x4 png 
+ggsave("fig2f_real_data.png", width = 8, height = 5)
 
 
 # ###########################
