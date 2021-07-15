@@ -1,8 +1,7 @@
 # ###############################################################
 # Description: companion software of the article
-#             «A goodness-of-fit test for functional time series:
-#             applications to specification test for stochastic
-#            diffusion models»
+#              «A goodness-of-fit test for functional time series
+#              with applications to diffusion processes»
 # Authors: A. López-Pérez and J. Álvarez-Liébana
 # ###############################################################
 
