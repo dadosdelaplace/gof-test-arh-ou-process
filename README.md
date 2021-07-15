@@ -1,6 +1,6 @@
 <!--
-Goodness-of-fit test for autoregressive functional processes and specification test for OU process from a functional perspective. Software companion for "A goodness-of-fit test for functional time series: a specification test to SDE"
-Authors: Alejandra López-Pérez and Javier Álvarez Liébana (@DadosDeLaplace)
+Goodness-of-fit test for autoregressive functional processes and specification test for OU process from a functional perspective. Software companion for "A goodness-of-fit test for functional time series with applications to diffusion processes"
+Authors: Alejandra López-Pérez and Javier Álvarez-Liébana (@DadosDeLaplace)
 -->
 
 Goodness-of-fit test for autoregressive functional processes and specification test for diffusion processes
@@ -14,7 +14,7 @@ GPLv3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org
 Overview
 -------
 
-Software companion for the article [TITLE X (López-Perez, Álvarez-Liébana, González-Manteiga and Febrero Bande, 2021)](https://arxiv.org/), currently submitted in THE JOURNAL X. It implements the proposed estimators and **goodness-of-fit tests for 
+Software companion for the article [A goodness-of-fit test for functional time series with applications to diffusion processes (Álvarez-Liébana, López-Perez, González-Manteiga and Febrero Bande, 2021)](https://arxiv.org/), currently submitted. It implements the proposed estimators and **goodness-of-fit tests for 
 autoregressive functional processes of order one in Hilbert spaces (ARH(1) processes)**, as well as a **specification test for diffusion processes**, focused on testing [Ornstein-Uhlenbeck processes](https://www.sciencedirect.com/science/article/abs/pii/S016771521630044X).
 
 It also allows to replicate simulations and the data application presented.
@@ -1231,7 +1231,7 @@ GPLv3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org
 References
 ----------
 
-López-Perez, A., Álvarez-Liébana, J., González-Manteiga, W. and Febrero-Bande, M. (2021). 
+Álvarez-Liébana, J., López-Perez, A., González-Manteiga, W. and Febrero-Bande, M. (2021). 
 A goodness-of-fit test for functional time series with applications to diffusion processes. *arXiv: *
 <a href="https://arxiv.org" class="uri">https://arxiv.org</a>
 
